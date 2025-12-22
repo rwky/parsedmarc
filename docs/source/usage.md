@@ -307,6 +307,14 @@ The full set of configuration options are:
     verification (not recommended)
   - `aggregate_topic` - str: The Kafka topic for aggregate reports
   - `forensic_topic` - str: The Kafka topic for forensic reports
+- `sqlite`
+  - `db` - str: Filesystem path to the SQLite database file (required)
+  - `aggregate_table` - str: Table name for aggregate reports (Default: `dmarc_aggregate`)
+  - `forensic_table` - str: Table name for forensic reports (Default: `dmarc_forensic`)
+  - `smtp_tls_table` - str: Table name for SMTP TLS reports (Default: `smtp_tls`)
+  Reports are written when the matching `save_*` flag in `[general]` is enabled.
+  Tables are created automatically if they do not already exist.
+
 - `smtp`
   - `host` - str: The SMTP hostname
   - `port` - int: The SMTP port (Default: `25`)

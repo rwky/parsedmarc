@@ -44,6 +44,7 @@ Thanks to all
 - Optionally send the results to Elasticsearch, Opensearch, and/or Splunk, for
   use with premade dashboards
 - Optionally send reports to Apache Kafka
+- Optionally write reports to a SQLite database
 
 ## Python Compatibility
 

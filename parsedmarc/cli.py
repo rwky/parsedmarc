@@ -37,6 +37,7 @@ from parsedmarc import (
     loganalytics,
     gelf,
     webhook,
+    sqlite,
 )
 from parsedmarc.mail import (
     IMAPConnection,
@@ -103,6 +104,8 @@ def cli_parse(
 
 def _main():
     """Called when the module is executed"""
+
+    sqlite_client = None
 
     def get_index_prefix(report):
         if index_prefix_domain_map is None:
@@ -228,6 +231,14 @@ def _main():
                 except Exception as error_:
                     logger.error("Webhook Error: {0}".format(error_.__str__()))
 
+                try:
+                    if sqlite_client:
+                        sqlite_client.save_aggregate_reports(report)
+                except sqlite.SQLiteStorageError as error_:
+                    logger.error("SQLite Error: {0}".format(error_.__str__()))
+                except Exception as error_:
+                    logger.error("SQLite exception error: {}".format(error_.__str__()))
+
             if opts.hec:
                 try:
                     aggregate_reports_ = reports_["aggregate_reports"]
@@ -313,6 +324,14 @@ def _main():
                 except Exception as error_:
                     logger.error("Webhook Error: {0}".format(error_.__str__()))
 
+                try:
+                    if sqlite_client:
+                        sqlite_client.save_forensic_reports(report)
+                except sqlite.SQLiteStorageError as error_:
+                    logger.error("SQLite Error: {0}".format(error_.__str__()))
+                except Exception as error_:
+                    logger.error("SQLite exception error: {}".format(error_.__str__()))
+
             if opts.hec:
                 try:
                     forensic_reports_ = reports_["forensic_reports"]
@@ -397,6 +416,14 @@ def _main():
                         )
                 except Exception as error_:
                     logger.error("Webhook Error: {0}".format(error_.__str__()))
+
+                try:
+                    if sqlite_client:
+                        sqlite_client.save_smtp_tls_reports(report)
+                except sqlite.SQLiteStorageError as error_:
+                    logger.error("SQLite Error: {0}".format(error_.__str__()))
+                except Exception as error_:
+                    logger.error("SQLite exception error: {}".format(error_.__str__()))
 
             if opts.hec:
                 try:
@@ -661,6 +688,10 @@ def _main():
         webhook_forensic_url=None,
         webhook_smtp_tls_url=None,
         webhook_timeout=60,
+        sqlite_database=None,
+        sqlite_aggregate_table="dmarc_aggregate",
+        sqlite_forensic_table="dmarc_forensic",
+        sqlite_smtp_tls_table="smtp_tls",
         normalize_timespan_threshold_hours=24.0,
     )
     args = arg_parser.parse_args()
@@ -1239,6 +1270,22 @@ def _main():
             if "timeout" in webhook_config:
                 opts.webhook_timeout = webhook_config.getint("timeout")
 
+        if "sqlite" in config.sections():
+            sqlite_config = config["sqlite"]
+            if "db" in sqlite_config:
+                opts.sqlite_database = sqlite_config["db"]
+            else:
+                logger.critical(
+                    "db setting missing from the sqlite config section (db = /path/to/file.db)"
+                )
+                exit(-1)
+            if "aggregate_table" in sqlite_config:
+                opts.sqlite_aggregate_table = sqlite_config["aggregate_table"]
+            if "forensic_table" in sqlite_config:
+                opts.sqlite_forensic_table = sqlite_config["forensic_table"]
+            if "smtp_tls_table" in sqlite_config:
+                opts.sqlite_smtp_tls_table = sqlite_config["smtp_tls_table"]
+
     logger.setLevel(logging.ERROR)
 
     if opts.warnings:
@@ -1410,6 +1457,19 @@ def _main():
             )
         except Exception as error_:
             logger.error("Webhook Error: {0}".format(error_.__str__()))
+
+    if opts.sqlite_database:
+        try:
+            sqlite_client = sqlite.SQLiteClient(
+                opts.sqlite_database,
+                aggregate_table=opts.sqlite_aggregate_table,
+                forensic_table=opts.sqlite_forensic_table,
+                smtp_tls_table=opts.sqlite_smtp_tls_table,
+            )
+        except sqlite.SQLiteStorageError as error_:
+            logger.error("SQLite Error: {0}".format(error_.__str__()))
+        except Exception as error_:
+            logger.error("SQLite exception error: {}".format(error_.__str__()))
 
     kafka_aggregate_topic = opts.kafka_aggregate_topic
     kafka_forensic_topic = opts.kafka_forensic_topic
@@ -1691,6 +1751,9 @@ def _main():
         except FileExistsError as error:
             logger.error("{0}".format(error.__str__()))
             exit(1)
+
+    if sqlite_client:
+        sqlite_client.close()
 
 
 if __name__ == "__main__":
